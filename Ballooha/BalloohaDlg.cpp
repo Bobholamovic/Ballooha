@@ -12,7 +12,6 @@
 #define new DEBUG_NEW
 #endif
 
-
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
 
 class CAboutDlg : public CDialogEx
@@ -49,9 +48,10 @@ END_MESSAGE_MAP()
 
 
 CBalloohaDlg::CBalloohaDlg(CWnd* pParent /*=NULL*/)
-	: CDialogEx(CBalloohaDlg::IDD, pParent)
+: CDialogEx(CBalloohaDlg::IDD, pParent), m_bEnd(false), m_iEndDraw(FALSE, TRUE, NULL, NULL)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+	//_CrtSetBreakAlloc(402);
 }
 
 void CBalloohaDlg::DoDataExchange(CDataExchange* pDX)
@@ -65,7 +65,6 @@ BEGIN_MESSAGE_MAP(CBalloohaDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_WM_LBUTTONDOWN()
 	ON_WM_CLOSE()
-	ON_WM_TIMER()
 END_MESSAGE_MAP()
 
 
@@ -105,8 +104,9 @@ BOOL CBalloohaDlg::OnInitDialog()
 	// TODO:  在此添加额外的初始化代码
 	// 初始化双缓冲
 	InitDB();
-	// 打开定时器，开始刷新屏幕
-	SetTimer(REFRESH_TIMER_ID, REFRESH_RATE, NULL);
+	// 开启绘图线程
+	AfxBeginThread(DrawThreadFunc, 
+		(LPVOID)this);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -188,24 +188,35 @@ UINT BallThreadFunc(LPVOID param)
 	return 1;
 }
 
-void CBalloohaDlg::DrawBalls()
+UINT DrawThreadFunc(LPVOID param)
 {
-	CDC* pDC = GetDC();
+	// 绘图线程
+	CBalloohaDlg* pDlg = reinterpret_cast<CBalloohaDlg*>(param);
+	CDC* pDC = pDlg->GetDC();
 
-	// 清空位图
-	m_iMemDC.FillSolidRect(LEFT_BORDER, UPPER_BORDER, RIGHT_BORDER - LEFT_BORDER, LOWER_BORDER - UPPER_BORDER, COLOR_WHITE);
+	while (!pDlg->m_bEnd)
+	{
+		// 清空位图
+		pDlg->m_iMemDC.FillSolidRect(LEFT_BORDER, UPPER_BORDER, RIGHT_BORDER - LEFT_BORDER, LOWER_BORDER - UPPER_BORDER, COLOR_WHITE);
 
-	// 绘图
-	m_iCS.Lock();
-	for (auto itr = m_lstBalls.begin(); itr != m_lstBalls.end(); itr++)
-		itr->Draw(m_iMemDC);
-	m_iCS.Unlock();
+		// 绘图
+		pDlg->m_iCS.Lock();
+		for (auto itr = pDlg->m_lstBalls.begin(); itr != pDlg->m_lstBalls.end(); itr++)
+			itr->Draw(pDlg->m_iMemDC);
+		pDlg->m_iCS.Unlock();
 
-	// 将内存中图拷贝到屏幕
-	pDC->BitBlt(LEFT_BORDER, UPPER_BORDER, RIGHT_BORDER - LEFT_BORDER, LOWER_BORDER - UPPER_BORDER, &m_iMemDC, LEFT_BORDER, UPPER_BORDER, SRCCOPY);
+		// 将内存中图拷贝到屏幕
+		pDC->BitBlt(LEFT_BORDER, UPPER_BORDER, RIGHT_BORDER - LEFT_BORDER, LOWER_BORDER - UPPER_BORDER, &pDlg->m_iMemDC, LEFT_BORDER, UPPER_BORDER, SRCCOPY);
+
+		// 延时
+		Sleep(REFRESH_RATE);
+	}
 
 	// 释放内存
-	ReleaseDC(pDC);
+	pDlg->ReleaseDC(pDC);
+	//激活事件
+	pDlg->m_iEndDraw.SetEvent();	
+	return 0;
 }
 
 void CBalloohaDlg::OnLButtonDown(UINT nFlags, CPoint point)
@@ -228,41 +239,15 @@ void CBalloohaDlg::OnLButtonDown(UINT nFlags, CPoint point)
 	m_itrLast = --m_lstBalls.end();
 
 	// 创建线程
-	AfxBeginThread(BallThreadFunc, (LPVOID) this);
+	AfxBeginThread(BallThreadFunc, 
+		(LPVOID) this);
 
 	CDialogEx::OnLButtonDown(nFlags, point);
-}
-
-
-void CBalloohaDlg::OnClose()
-{
-	// TODO:  在此添加消息处理程序代码和/或调用默认值
-	CDialogEx::OnClose();
 }
 
 CBalloohaDlg::~CBalloohaDlg()
 {
 	// 析构函数
-	// 保证所有线程退出
-	// 这个方法不好，但考虑到不想再用额外空间保存句柄，先这样写
-	for (auto itr = m_lstBalls.begin(); itr != m_lstBalls.end(); itr++)
-		itr->SetEraseFlag();
-	Sleep(1000);
-}
-
-void CBalloohaDlg::OnTimer(UINT_PTR nIDEvent)
-{
-	// TODO:  在此添加消息处理程序代码和/或调用默认值
-
-	switch (nIDEvent)
-	{
-	case REFRESH_TIMER_ID:
-		DrawBalls();
-		break;
-	default:
-		;
-	}
-	CDialogEx::OnTimer(nIDEvent);
 }
 
 void CBalloohaDlg::InitDB()
@@ -277,4 +262,20 @@ void CBalloohaDlg::InitDB()
 	m_iMemDC.SelectObject(&m_iMemBit);
 
 	ReleaseDC(pDC);
+}
+
+void CBalloohaDlg::OnClose()
+{
+	// TODO:  在此添加消息处理程序代码和/或调用默认值
+	// 保证所有线程退出
+	// 不写在析构函数中是因为绘图线程需销毁pDC，而这需要用到窗口指针
+	// 析构函数是最后调用的，在这时窗口已被销毁，指针已经为NULL
+	// 而OnClose在关闭过程中被第一个调用
+	m_bEnd = true;
+	for (auto itr = m_lstBalls.begin(); itr != m_lstBalls.end(); itr++)
+		itr->SetEraseFlag();
+	while (m_lstBalls.size());	// 等待球工作线程全部退出（链表为空）
+	m_iEndDraw.Lock();	// 阻塞主线程直到绘图线程退出
+
+	CDialogEx::OnClose();
 }

@@ -28,4 +28,3 @@
 
 // 其它参数
 #define REFRESH_RATE 50	// 帧刷新速率（图像绘制时间间隔，单位ms）
-#define REFRESH_TIMER_ID 0	// 刷新用定时器ID号

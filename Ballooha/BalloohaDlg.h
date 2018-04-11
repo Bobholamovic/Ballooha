@@ -40,14 +40,15 @@ public:
 	std::list<CBall>::iterator m_itrLast;	// 生成的上一个球的迭代器
 	CDC m_iMemDC;	// 用作双缓冲中的内存设备上下文
 	CBitmap m_iMemBit;	// 用作双缓冲中的位图
+	bool m_bEnd;	// 结束标志，用于控制绘图线程的退出
+	CEvent m_iEndDraw;	// 绘图线程结束事件
 
 public:
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
-	afx_msg void OnClose();
-	afx_msg void OnTimer(UINT_PTR nIDEvent);
-	void DrawBalls();	// 绘制球
 	void InitDB();	// 双缓冲初始化
+	afx_msg void OnClose();
 };
 
 // 线程函数声明
 UINT BallThreadFunc(LPVOID param);
+UINT DrawThreadFunc(LPVOID param);
