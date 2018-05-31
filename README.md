@@ -1,5 +1,5 @@
 # Ballooha
-An MFC Multi-thread Program to print some balls to the screen.
+An MFC Multi-thread Program to print some balls on the screen.
 **************************************************************
-Just click the mouse and kill some time by watching balls eating each other if you got nothing to do.
+Just click the mouse and kill some time by watching balls eating(absorbing) each other if you got nothing to do.
 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
