@@ -1,5 +1,6 @@
 # Ballooha
 An MFC Multi-thread Program to print some balls on the screen.
+
 ![screenshot](https://github.com/Bobholamovic/Ballooha/blob/master/Screenshot.png)
 
 ## Usage
